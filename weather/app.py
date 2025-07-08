@@ -3,8 +3,8 @@ import aiohttp
 import logging
 import os
 import time
+
 from datetime import datetime
-from typing import List, Optional
 from dataclasses import dataclass
 from collections import defaultdict
 
@@ -36,6 +36,9 @@ DEFAULT_TIME_WINDOW_SECS = 60
 class WeatherData:
     """Data class for weather information."""
 
+    # Instead of using a dictionary, we use a dataclass
+    # to define a rigid structure of the weather data.
+
     # TODO(developer): Add or remove fields as needed
     city: str
     temperature: float
@@ -45,7 +48,7 @@ class WeatherData:
     wind_speed: float
     country: str
     timestamp: str
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class RateLimiter:
@@ -92,14 +95,14 @@ class WeatherService:
 
     async def fetch_weather(
         self, session: aiohttp.ClientSession, city: str
-    ) -> WeatherData:
+    ) -> WeatherData | dict:
         """Fetch weather data for a specific city."""
         start_time = time.time()
 
         try:
             # Check rate limit
             if not self.rate_limiter.is_allowed():
-                logger.warning(f"Rate limit while feching '{city}'")
+                logger.warning(f"Rate limit reached while feching '{city}'")
                 return WeatherData(
                     city=city,
                     temperature=0,
@@ -117,7 +120,7 @@ class WeatherService:
             async with session.get(
                 self.base_url, params=params, timeout=self.timeout
             ) as response:
-                if response.status == 200:
+                if response.status == 200:  # HTTP 200 OK
                     data = await response.json()
                     weather_data = WeatherData(
                         city=data["name"],
@@ -132,6 +135,7 @@ class WeatherService:
 
                     # Log performance metrics
                     duration = time.time() - start_time
+
                     logger.info(
                         f"Successfully fetched weather for {city} in {duration:.2f}s"
                     )
@@ -140,6 +144,7 @@ class WeatherService:
                 else:
                     error_msg = f"API returned status {response.status}"
                     logger.error(f"Failed to fetch weather for {city}: {error_msg}")
+
                     return WeatherData(
                         city=city,
                         temperature=0,
@@ -179,7 +184,7 @@ class WeatherService:
                 error=str(e),
             )
 
-    async def fetch_cities_list(self, cities: List[str]) -> List[WeatherData]:
+    async def fetch_cities_list(self, cities: list[str]) -> list[WeatherData]:
         """Fetch weather data for multiple cities concurrently."""
         start_time = time.time()
 
@@ -228,8 +233,8 @@ def index():
     """API endpoint to get weather data."""
     # Here we will fetch the weather data for multiple cities concurrently
 
-    # TODO(developer): Replace with your desired cities, or load this from
-    # the user preferences from a database
+    # TODO(developer): Replace with your desired cities,
+    # or load the list from a database
     cities = ["Mexico City", "San Francisco", "London"]
 
     try:
@@ -242,8 +247,10 @@ def index():
         )
         loop.close()
 
-        # Convert to dict for JSON response
+        # Prepare the JSON response
         # TODO: Add units!
+        # TODO: This could be done with a Serializer,
+        # depending on the framework such as Django REST or FastAPI.
         weather_dict = [
             {
                 "city": data.city,
